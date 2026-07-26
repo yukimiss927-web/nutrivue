@@ -1,0 +1,7 @@
+# Keep the cloud-build upload small (deps are installed on EAS servers).
+node_modules/
+.expo/
+dist/
+web-build/
+*.log
+scratchpad/

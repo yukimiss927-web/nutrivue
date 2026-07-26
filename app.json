@@ -1,0 +1,72 @@
+{
+  "expo": {
+    "name": "Nutrivue",
+    "slug": "nutrivue-health",
+    "owner": "vnshikaexpo27",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "nutrivue",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0F172A"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nutrivue.health",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Nutrivue uses your camera to take photos of your meals for nutrition analysis.",
+        "NSPhotoLibraryUsageDescription": "Nutrivue needs access to your photos so you can select a meal picture to analyze."
+      }
+    },
+    "android": {
+      "package": "com.nutrivue.health",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0F172A"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Nutrivue needs access to your photos so you can select a meal picture to analyze.",
+          "cameraPermission": "Nutrivue uses your camera to take photos of your meals for nutrition analysis."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#0EA5A4"
+        }
+      ]
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "e6396e80-84f0-4be4-9b05-0f114e838528"
+      }
+    }
+  }
+}
