@@ -9,10 +9,10 @@ import { colors, font, radius, shadow, spacing } from '@/theme';
 const PRICE = '$25';
 const PERIOD = 'one-time · lifetime access';
 
-// Paste your Razorpay (or Stripe) payment link here to enable real payments.
-// Razorpay shows PhonePe/UPI (India) + international cards on one page.
-// Leave empty ('') to keep the "coming soon" message.
-const PAYMENT_LINK = '';
+// Paste your payment links here to enable real payments (leave '' for "coming soon").
+// RAZORPAY_LINK = India (PhonePe / UPI / cards).   PAYPAL_LINK = international customers.
+const RAZORPAY_LINK = '';
+const PAYPAL_LINK = '';
 
 const BENEFITS: { icon: string; title: string; sub: string }[] = [
   { icon: '♾️', title: 'Unlimited meal scans', sub: 'Free plan is limited to 3 scans per day' },
@@ -26,18 +26,17 @@ const BENEFITS: { icon: string; title: string; sub: string }[] = [
 export default function Premium() {
   const router = useRouter();
 
-  function onBuy() {
-    if (PAYMENT_LINK) {
-      // Opens the secure Razorpay/Stripe checkout page in the browser.
-      Linking.openURL(PAYMENT_LINK).catch(() =>
+  function openPay(link: string, provider: string) {
+    if (link) {
+      // Opens the secure checkout page (Razorpay / PayPal) in the browser.
+      Linking.openURL(link).catch(() =>
         Alert.alert('Could not open the payment page. Please try again.')
       );
       return;
     }
     Alert.alert(
-      'Premium coming soon 🎉',
-      'Thanks for your interest! Nutrivue Premium payments are being set up. ' +
-        'Please check back shortly.',
+      'Payments coming soon 🎉',
+      `${provider} checkout is being set up. Please check back shortly.`,
       [{ text: 'Got it' }]
     );
   }
@@ -80,14 +79,27 @@ export default function Premium() {
           ))}
         </View>
 
-        <Button label={`Get Premium — ${PRICE}`} onPress={onBuy} />
+        <View style={{ gap: spacing.md }}>
+          <Button
+            label={`🇮🇳 UPI / PhonePe / Card — ${PRICE}`}
+            onPress={() => openPay(RAZORPAY_LINK, 'Razorpay')}
+          />
+          <Button
+            label={`🌍 Pay with PayPal — ${PRICE}`}
+            variant="secondary"
+            onPress={() => openPay(PAYPAL_LINK, 'PayPal')}
+          />
+        </View>
+        <Text style={styles.trust}>
+          🔒 Secure payments via Razorpay & PayPal · UPI & cards accepted
+        </Text>
         <Pressable onPress={() => router.back()}>
           <Text style={styles.later}>Maybe later</Text>
         </Pressable>
 
         <Text style={styles.fine}>
-          Payment is charged securely through the Google Play Store. Lifetime
-          access — pay once, use forever. Prices may vary by region.
+          Payments are processed securely by Razorpay (UPI/cards) and PayPal.
+          Lifetime access — pay once, use forever. Prices shown in USD.
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -139,6 +151,7 @@ const styles = StyleSheet.create({
   benefitTitle: { fontSize: font.size.md, fontWeight: font.weight.semibold, color: colors.text },
   benefitSub: { fontSize: font.size.xs, color: colors.textMuted, marginTop: 1 },
   check: { color: colors.safe, fontSize: font.size.lg, fontWeight: font.weight.bold },
+  trust: { textAlign: 'center', color: colors.textFaint, fontSize: font.size.xs },
   later: { textAlign: 'center', color: colors.textMuted, fontSize: font.size.md, paddingVertical: spacing.sm },
   fine: {
     fontSize: font.size.xs,
