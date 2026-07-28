@@ -14,10 +14,17 @@ const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')!;
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 
-// Gemini vision-capable model. Change here if you want a different tier.
-const MODEL = 'gemini-2.0-flash';
-const GEMINI_ENDPOINT =
-  `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+// Try these vision-capable models in order until one has free-tier quota.
+// (Different Gemini models have different free limits per account/region, so a
+//  fallback list makes the app resilient to "quota: 0" on any single model.)
+const MODELS = [
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-flash-latest',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash-latest',
+];
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -45,22 +52,16 @@ const RESPONSE_SCHEMA = {
       type: 'ARRAY',
       items: {
         type: 'OBJECT',
-        properties: {
-          name: { type: 'STRING' },
-          confidence: { type: 'NUMBER' },
-        },
+        properties: { name: { type: 'STRING' }, confidence: { type: 'NUMBER' } },
         required: ['name'],
       },
     },
     nutrition: {
       type: 'OBJECT',
       properties: {
-        calories: { type: 'NUMBER' },
-        carbs_g: { type: 'NUMBER' },
-        protein_g: { type: 'NUMBER' },
-        fats_g: { type: 'NUMBER' },
-        sodium_mg: { type: 'NUMBER' },
-        sugar_g: { type: 'NUMBER' },
+        calories: { type: 'NUMBER' }, carbs_g: { type: 'NUMBER' },
+        protein_g: { type: 'NUMBER' }, fats_g: { type: 'NUMBER' },
+        sodium_mg: { type: 'NUMBER' }, sugar_g: { type: 'NUMBER' },
       },
       required: ['calories', 'carbs_g', 'protein_g', 'fats_g', 'sodium_mg', 'sugar_g'],
     },
@@ -89,98 +90,77 @@ const RESPONSE_SCHEMA = {
 function buildUserText(profile: any): string {
   const conditions = (profile?.conditions ?? []).join(', ') || 'none reported';
   const allergies = (profile?.allergies ?? []).join(', ') || 'none reported';
-  const restrictions =
-    (profile?.restrictions ?? []).join(', ') || 'none reported';
+  const restrictions = (profile?.restrictions ?? []).join(', ') || 'none reported';
   const notes = profile?.notes ? `\nAdditional notes: ${profile.notes}` : '';
-  return (
-    `Analyze this meal for a user with the following health profile.\n` +
-    `Medical conditions: ${conditions}\n` +
-    `Allergies: ${allergies}\n` +
-    `Dietary restrictions: ${restrictions}${notes}`
-  );
+  return `Analyze this meal for a user with the following health profile.\n` +
+    `Medical conditions: ${conditions}\nAllergies: ${allergies}\n` +
+    `Dietary restrictions: ${restrictions}${notes}`;
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
-
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
-    // ---- Verify the caller is a logged-in user -------------------------
     const authHeader = req.headers.get('Authorization') ?? '';
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
     });
-    const {
-      data: { user },
-      error: userErr,
-    } = await supabase.auth.getUser();
-    if (userErr || !user) {
-      return json({ error: 'Unauthorized' }, 401);
-    }
+    const { data: { user }, error: userErr } = await supabase.auth.getUser();
+    if (userErr || !user) return json({ error: 'Unauthorized' }, 401);
 
-    // ---- Read the request body ----------------------------------------
-    // imageBase64: raw base64 (no data: prefix); mediaType e.g. "image/jpeg"
     const { imageBase64, mediaType } = await req.json();
-    if (!imageBase64) {
-      return json({ error: 'Missing imageBase64' }, 400);
-    }
+    if (!imageBase64) return json({ error: 'Missing imageBase64' }, 400);
 
-    // ---- Load the user's saved health profile -------------------------
     const { data: profile } = await supabase
-      .from('profiles')
-      .select('conditions, allergies, restrictions, notes')
-      .eq('id', user.id)
-      .single();
+      .from('profiles').select('conditions, allergies, restrictions, notes')
+      .eq('id', user.id).single();
 
-    // ---- Call Google Gemini -------------------------------------------
-    const geminiRes = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              {
-                inline_data: {
-                  mime_type: mediaType ?? 'image/jpeg',
-                  data: imageBase64,
-                },
-              },
-              { text: buildUserText(profile) },
-            ],
-          },
+    const body = JSON.stringify({
+      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents: [{
+        role: 'user',
+        parts: [
+          { inline_data: { mime_type: mediaType ?? 'image/jpeg', data: imageBase64 } },
+          { text: buildUserText(profile) },
         ],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          responseSchema: RESPONSE_SCHEMA,
-          temperature: 0.2,
-        },
-      }),
+      }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: RESPONSE_SCHEMA,
+        temperature: 0.2,
+      },
     });
 
-    if (!geminiRes.ok) {
-      const detail = await geminiRes.text();
-      return json({ error: 'AI request failed', detail }, 502);
+    // Try each model until one succeeds (skips models that are out of quota / unavailable).
+    let aiData: any = null;
+    let usedModel = '';
+    let lastDetail = '';
+    let lastStatus = 0;
+    for (const m of MODELS) {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI_API_KEY}`,
+        { method: 'POST', headers: { 'content-type': 'application/json' }, body }
+      );
+      if (res.ok) { aiData = await res.json(); usedModel = m; break; }
+      lastStatus = res.status;
+      lastDetail = await res.text();
+      // 429 = quota exhausted, 404 = model not available for this key -> try next.
+      // Any other error (400 bad key, etc.) -> stop and report.
+      if (res.status !== 429 && res.status !== 404) break;
     }
 
-    const aiData = await geminiRes.json();
-    const rawText: string =
-      aiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    if (!aiData) {
+      return json(
+        { error: 'AI request failed', status: lastStatus, detail: lastDetail, triedModels: MODELS },
+        502
+      );
+    }
 
-    // With responseMimeType=application/json this is already pure JSON,
-    // but strip any accidental code fences just in case.
+    const rawText = aiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
     const cleaned = rawText.replace(/```json|```/g, '').trim();
     let result: any;
-    try {
-      result = JSON.parse(cleaned);
-    } catch {
-      return json({ error: 'AI returned invalid JSON', raw: rawText }, 502);
-    }
-
-    return json({ result }, 200);
+    try { result = JSON.parse(cleaned); }
+    catch { return json({ error: 'AI returned invalid JSON', raw: rawText }, 502); }
+    return json({ result, model: usedModel }, 200);
   } catch (err) {
     return json({ error: String(err) }, 500);
   }
@@ -188,7 +168,6 @@ Deno.serve(async (req: Request) => {
 
 function json(body: unknown, status: number) {
   return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 }
