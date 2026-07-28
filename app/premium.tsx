@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Button } from '@/components/ui';
@@ -8,6 +8,11 @@ import { colors, font, radius, shadow, spacing } from '@/theme';
 // One place to change the price / period later.
 const PRICE = '$25';
 const PERIOD = 'one-time · lifetime access';
+
+// Paste your Razorpay (or Stripe) payment link here to enable real payments.
+// Razorpay shows PhonePe/UPI (India) + international cards on one page.
+// Leave empty ('') to keep the "coming soon" message.
+const PAYMENT_LINK = '';
 
 const BENEFITS: { icon: string; title: string; sub: string }[] = [
   { icon: '♾️', title: 'Unlimited meal scans', sub: 'Free plan is limited to 3 scans per day' },
@@ -22,12 +27,17 @@ export default function Premium() {
   const router = useRouter();
 
   function onBuy() {
-    // Real payments require Google Play Billing, available once the app is
-    // published to the Play Store. Placeholder message for now.
+    if (PAYMENT_LINK) {
+      // Opens the secure Razorpay/Stripe checkout page in the browser.
+      Linking.openURL(PAYMENT_LINK).catch(() =>
+        Alert.alert('Could not open the payment page. Please try again.')
+      );
+      return;
+    }
     Alert.alert(
       'Premium coming soon 🎉',
-      'Thanks for your interest! Nutrivue Premium will be available to purchase ' +
-        'once the app is live on the Google Play Store. Stay tuned!',
+      'Thanks for your interest! Nutrivue Premium payments are being set up. ' +
+        'Please check back shortly.',
       [{ text: 'Got it' }]
     );
   }
