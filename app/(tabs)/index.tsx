@@ -1,6 +1,5 @@
 import React, { useCallback, useState } from 'react';
 import {
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -102,16 +101,6 @@ export default function Dashboard() {
           </Text>
           <Button label="Scan my plate" onPress={() => router.push('/(tabs)/scan')} />
         </Card>
-
-        {/* Premium upsell */}
-        <Pressable onPress={() => router.push('/premium')} style={styles.premiumBanner}>
-          <Text style={{ fontSize: 26 }}>👑</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.premiumTitle}>Upgrade to Premium</Text>
-            <Text style={styles.premiumSub}>Unlimited scans, reports & more</Text>
-          </View>
-          <Text style={styles.premiumCta}>$25</Text>
-        </Pressable>
 
         {/* Daily nutrition summary */}
         <View>
@@ -218,21 +207,4 @@ const styles = StyleSheet.create({
   reminderRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   reminderTitle: { fontSize: font.size.md, fontWeight: font.weight.medium, color: colors.text },
   reminderMeta: { fontSize: font.size.xs, color: colors.textMuted },
-  premiumBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: '#FEF3C7',
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-  },
-  premiumTitle: { fontSize: font.size.md, fontWeight: font.weight.bold, color: '#B45309' },
-  premiumSub: { fontSize: font.size.xs, color: '#B45309', marginTop: 1 },
-  premiumCta: {
-    fontSize: font.size.lg,
-    fontWeight: font.weight.bold,
-    color: '#B45309',
-  },
 });
